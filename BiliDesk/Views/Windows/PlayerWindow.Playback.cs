@@ -551,6 +551,8 @@ public partial class PlayerWindow : FluentWindow
     /// </param>
     private void ClearSeekWatchdog(bool hideBuffering = true)
     {
+        if (_pendingSeekMs >= 0)
+            PlayerLog.Write($"[Seek] clear target={_pendingSeekMs} at={_lastKnownMs}\n");
         _pendingSeekMs = -1;
         _seekObservedMs = -1;
         _seekFromMs = -1;
@@ -969,6 +971,9 @@ public partial class PlayerWindow : FluentWindow
 
         var cur = _lastKnownMs > 0 ? _lastKnownMs : 0;
         var delta = targetMs - cur;
+        // 长跳转留痕: 失败时才能从日志分辨"没发出去 / 落点不对 / 被看门狗重建"
+        if (Math.Abs(delta) >= 5000)
+            PlayerLog.Write($"[Seek] issue from={cur} to={targetMs} len={length} pending={_pendingSeekMs}\n");
 
         // ★★ 2026-11-05: 同一次点击会被**两条路**各发一次 ——
         //   ValueChanged(点击轨道时 WPF 先把值挪到点击点) + Thumb.DragCompleted

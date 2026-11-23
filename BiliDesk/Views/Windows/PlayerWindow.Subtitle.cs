@@ -474,6 +474,16 @@ public partial class PlayerWindow : FluentWindow
     private void RefreshSubtitleNow()
     {
         if (_closing) return;
+
+        // ★ 2026-11-23: 重建/跳转期间播放器位置还没落定, 此时继续按"当前(旧/0)位置"
+        //   刷字幕, 会先闪出第一句或上一位置的字幕, 看起来就是"字幕和画面不对应"。
+        //   遮罩在的时候直接藏字幕层, 等 seek 落定后下一跳再显示。
+        if (_pendingSeekMs >= 0 || LoadingOverlay?.Visibility == Visibility.Visible)
+        {
+            HideSubtitleLayer();
+            _subtitleLastText = "";
+            return;
+        }
         // 聆听态/已播完: 字幕层被 ListenOverlay / EndOverlay 盖着, 但心跳若照常刷,
         // 会把 Visibility 拉回 Visible —— 退出聆听态/重播时就会闪出旧文本。
         // 这里统一按状态藏, 让"恢复"只由这两个标志翻转驱动。
