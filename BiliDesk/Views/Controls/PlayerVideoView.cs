@@ -37,6 +37,8 @@ public sealed class PlayerVideoView : HwndHost
     private Window? _owner;
     private HwndSource? _ownerSource;
     private IntPtr _overlayHwnd;
+    private Win32Rect _lastOverlayRect;
+    private bool _hasOverlayRect;
     private DispatcherTimer? _timer;
     private object? _overlayContent;
     private bool _surfaceReadyRaised;
@@ -162,6 +164,7 @@ public sealed class PlayerVideoView : HwndHost
         }
 
         _overlayHwnd = IntPtr.Zero;
+        _hasOverlayRect = false;
     }
 
     private void OnOwnerGeometryChanged(object? sender, EventArgs e) => SyncOverlayBounds();
@@ -217,6 +220,17 @@ public sealed class PlayerVideoView : HwndHost
             return;
         }
 
+        // ★ 2026-11-23: 位置没变就不要重复 SetWindowPos —— 静止/暂停时 5Hz 的无谓移动
+        //   会让 DWM 反复合成那层透明覆盖窗口, 白白吃 CPU。
+        if (_hasOverlayRect && rect.Left == _lastOverlayRect.Left && rect.Top == _lastOverlayRect.Top &&
+            width == _lastOverlayRect.Right - _lastOverlayRect.Left &&
+            height == _lastOverlayRect.Bottom - _lastOverlayRect.Top)
+        {
+            return;
+        }
+
+        _lastOverlayRect = rect;
+        _hasOverlayRect = true;
         SetWindowPos(_overlayHwnd, IntPtr.Zero, rect.Left, rect.Top, width, height,
             SwpNoActivate | SwpNoZOrder);
     }
