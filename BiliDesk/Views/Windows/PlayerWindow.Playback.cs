@@ -395,7 +395,8 @@ public partial class PlayerWindow : FluentWindow
                     var target = _pendingSeekMs;
                     ShowLoading("正在跳转…");
                     ClearSeekWatchdog(hideBuffering: false);
-                    RebuildMediaAndSeek(target);
+                    // 先强制换一条新地址/候选线路再重建: 远跳失败多半是当前 URL 的 range 请求被 CDN 掐了
+                    _ = RebuildSeekWithFreshUrlAsync(target);
                 }
                 else
                 {

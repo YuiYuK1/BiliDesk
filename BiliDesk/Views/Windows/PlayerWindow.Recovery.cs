@@ -291,4 +291,28 @@ public partial class PlayerWindow : FluentWindow
         if (string.IsNullOrEmpty(url)) return "?";
         try { return new Uri(url).Host; } catch { return "?"; }
     }
+
+    /// <summary>
+    /// seek 重试仍失败后的重建: 先强制刷新 playurl、必要时换候选线路, 再重建。
+    /// 长视频远跳失败在日志里通常是 curlFailure / partial file —— 同一条 URL 原地重试
+    /// 大概率还是同一个 host, 换一条新签名/候选线路才有意义。
+    /// </summary>
+    private async Task RebuildSeekWithFreshUrlAsync(long targetMs)
+    {
+        if (_closing) return;
+        try
+        {
+            ShowLoading("正在跳转…");
+            await RefreshPlayUrlAsync();
+            if (_closing) return;
+            UseBackupUrlIfAny();
+        }
+        catch (Exception ex)
+        {
+            PlayerLog.Write($"[Seek] 重建前刷新地址失败: {ex.Message}\n");
+        }
+
+        if (_closing) return;
+        RebuildMediaAndSeek(targetMs);
+    }
 }
