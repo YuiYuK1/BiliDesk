@@ -592,6 +592,39 @@ public partial class PlayerWindow : FluentWindow
         RebuildMediaAndSeek(target, loadingText: "正在恢复画面…");
     }
 
+    /// <summary>
+    /// mpv 判定音轨时间戳非法并 reset playback 后的自愈。
+    ///
+    /// 日志里的 `Invalid audio PTS` / `Reset playback due to audio timestamp reset` 是硬证据:
+    /// 之后外部音轨会停在旧位置, 视频继续走, 表现为"字幕/讲课内容对不上"。
+    /// 等当前 seek 收尾后重建一次; 20s 冷却, 避免 seek 密集时反复打断。
+    /// </summary>
+    private async void HandleAudioDesync()
+    {
+        if (_closing || _isLive || _isLocalPlayback || _ended) return;
+        var now = Environment.TickCount64;
+        if (_audioDesyncRebuildAt >= 0 && now - _audioDesyncRebuildAt < 8_000) return;
+        _audioDesyncRebuildAt = now;
+
+        PlayerLog.Write("[Audio] mpv 音轨时间戳重置 → 等待 seek 收尾后重建\n");
+        // 重置通常发生在连续 seek 中途; 给看门狗 3s 收尾, 免得和它抢着重建。
+        for (var i = 0; i < 10 && (_isSeeking || _pendingSeekMs >= 0); i++)
+            await Task.Delay(300);
+        if (_closing || _ended) return;
+        if (_isSeeking || _pendingSeekMs >= 0) return;
+
+        var target = _lastKnownMs > 0 ? _lastKnownMs : CurrentPlaybackMs();
+        // reset 后 mpv 的 time-pos 可能已经被音轨拽到旧位置; 刚发生过跳转时以跳转目标为准,
+        // 否则重建会把用户送回错误的位置。
+        if (_lastSeekTargetMs > 0 && now - _seekIssuedAt < 60_000)
+            target = _lastSeekTargetMs;
+        if (target <= 0) return;
+        PlayerLog.Write($"[Audio] 音轨时间戳重置自愈 → 重建 at={target}ms\n");
+        ShowLoading("正在同步音画…");
+        ClearSeekWatchdog(hideBuffering: false);
+        RebuildMediaAndSeek(target);
+    }
+
     // ------------------------------------------------------------ seek 静音
 
     /// <summary>跳转发出: 静音(记住原音量)。连续拖动时已静音则只更新心跳, 不覆盖原值。</summary>

@@ -60,6 +60,9 @@ public interface IPlayerEngine : IDisposable
     /// </summary>
     event EventHandler? VideoStalled;
 
+    /// <summary>音轨时间戳被 mpv 判定为非法并触发 playback reset(A/V 硬失步)。</summary>
+    event EventHandler? AudioDesyncDetected;
+
     /// <summary>诊断快照(引擎侧关键状态), 写日志/排障用。</summary>
     string GetDiagnostics();
 

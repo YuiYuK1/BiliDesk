@@ -174,6 +174,7 @@ public partial class PlayerWindow : FluentWindow
     ///   重建路径自己不碰它。
     /// </summary>
     private bool _seekRebuildTried;
+    private long _audioDesyncRebuildAt = -1;
 
     /// <summary>
     /// "落点弹回起点"的连续确认值(-1 = 尚未观察到)。

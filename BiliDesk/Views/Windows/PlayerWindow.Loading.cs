@@ -1270,6 +1270,7 @@ public partial class PlayerWindow : FluentWindow
         // 清了就等于"换个视频弹幕又变回纯文字" —— 那是用户马上会报上来的 bug。
         nameof(_danmakuPill),
         nameof(_teardownDone),       // 拆解只做一次
+        nameof(_audioDesyncRebuildAt), // 音轨 PTS 重置自愈的冷却时间戳(窗口级)
         // 倍速弹层/窗口几何记忆(2026-11-03 未提交改动, 位置 2026-11-07)的窗口级状态
         nameof(_fillingSpeedMenu),   // 填充倍速列表时抑制 SelectionChanged, 纯 UI 瞬时闸
         nameof(_hasNormalPlacement), nameof(_placementSettling), nameof(_hasPlacementSettleSample), // 常规几何快照与稳定期(2026-11-14 重做)

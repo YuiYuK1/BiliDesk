@@ -106,6 +106,8 @@ public sealed class MpvEngine : IPlayerEngine
     /// <summary>时间在走、但视频帧号不再前进(2026-11-22: mpv 下拖动后视频流重连、画面冻结的兜底信号)。</summary>
     public event EventHandler? VideoStalled;
 
+    public event EventHandler? AudioDesyncDetected;
+
     /// <summary>诊断快照(写日志/用户反馈用): 一次给出引擎侧关键状态。</summary>
     public string GetDiagnostics()
     {
@@ -280,6 +282,17 @@ public sealed class MpvEngine : IPlayerEngine
     {
         if (_disposed) return;
         var text = e.Text;
+
+        // ★ 2026-11-24: audio-add 外部音轨在连续远跳后会被 mpv 判为时间戳非法, 触发
+        //   `Reset playback due to audio timestamp reset`; 之后音轨会停在旧位置, A/V 必然失步。
+        //   这条日志是硬证据, 直接通知上层重建, 不再等"画面冻住"。
+        if (text.Contains("Reset playback due to audio timestamp reset", StringComparison.Ordinal) ||
+            text.Contains("Invalid audio PTS", StringComparison.Ordinal))
+        {
+            _log?.Invoke("[mpv] 音轨时间戳重置 → 通知上层重建\n");
+            AudioDesyncDetected?.Invoke(this, EventArgs.Empty);
+        }
+
         if (!text.Contains("Error while decoding", StringComparison.Ordinal) &&
             !text.Contains("Invalid NAL", StringComparison.Ordinal) &&
             !text.Contains("Error splitting", StringComparison.Ordinal))

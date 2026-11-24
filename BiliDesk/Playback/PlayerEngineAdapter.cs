@@ -49,6 +49,8 @@ public sealed class PlayerEngineAdapter : IDisposable
     /// <summary>mpv 侧检测到"时间在走、画面停住"时触发(见 MpvEngine.CheckVideoStall)。</summary>
     public event EventHandler? VideoStalled;
 
+    public event EventHandler? AudioDesyncDetected;
+
     public PlayerState State => _engine?.State ?? PlayerState.Idle;
 
     public bool IsPlaying => _engine?.IsPlaying ?? false;
@@ -150,6 +152,7 @@ public sealed class PlayerEngineAdapter : IDisposable
         _engine.EndReached += (_, _) => EndReached?.Invoke(this, EventArgs.Empty);
         _engine.EncounteredError += (_, e) => EncounteredError?.Invoke(this, e);
         _engine.VideoStalled += (_, _) => VideoStalled?.Invoke(this, EventArgs.Empty);
+        _engine.AudioDesyncDetected += (_, _) => AudioDesyncDetected?.Invoke(this, EventArgs.Empty);
 
         _log?.Invoke("[Engine] " + _engine.GetDiagnostics() + "\n");
         _engine.SetVolume(_volume);
