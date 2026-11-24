@@ -46,6 +46,15 @@ public partial class PlayerWindow : FluentWindow
     private void OnRetryClick(object sender, RoutedEventArgs e)
     {
         FailOverlay.Visibility = Visibility.Collapsed;
+        // ★ 2026-11-24: 失败重试必须把上一轮的进度/seek 闸彻底清掉。否则 _ended 残留
+        //   会把进度条钉在片尾, 或 _pendingSeekMs 残留让 UpdateProgressUi 每跳都早退 ——
+        //   表现就是"声音画面都正常, 时间和进度条不动"。
+        _ended = false;
+        _pendingSeekMs = -1;
+        _seekObservedMs = -1;
+        _seekGraceUntil = 0;
+        _anchorMs = -1;
+        _displayedMs = -1;
         // ★ 2026-11-14(issue #81): 卡顿放弃时, 旧 input 可能还停在"假播放"状态
         //   (VLC 认为还在播, 实际读线程已经死了)。LibVLC 3 里**已有 input 时 play()
         //   会被直接忽略** —— 不先 Stop 的话用户点了「重试」什么也不会发生。

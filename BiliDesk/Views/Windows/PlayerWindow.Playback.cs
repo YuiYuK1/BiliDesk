@@ -124,6 +124,8 @@ public partial class PlayerWindow : FluentWindow
             if (_progressTimer != null) _progressTimer.Interval = ProgressTickIdle;
             _pendingSeekMs = -1;
             _seekObservedMs = -1;
+            _seekGraceUntil = 0;
+            _isSeeking = false;
             _anchorMs = -1;
             _displayedMs = -1;
             UpdatePlayButton();
@@ -422,16 +424,21 @@ public partial class PlayerWindow : FluentWindow
         // ★ seek 后音量写回被 aout 就绪窗口吞掉的延迟补写(没排队时零开销)
         RestoreVolumeWhenReady();
 
-        if (_engine.Length > 0 && !inSeekGrace)
+        if (!inSeekGrace)
         {
+            // ★ 2026-11-24: 重播/重试后 mpv 偶尔会短暂读回 duration=0(新 input 还没
+            //   报时长)。以前这里直接跳过整段 UI 更新, 进度条和时间就永远停在上一帧,
+            //   而声音/画面已经在新 input 里正常走了。用已知总时长兜底。
+            var length = _engine.Length > 0 ? _engine.Length : _totalMs;
+            if (length <= 0) return;
             // ★ 进度条与时间文字必须同源(2026-10-01, 用户截图 24:43/24:49 实锤"进度条卡在
             //   最右端但时间还剩 6 秒"): 以前进度条用 `_engine.Position`, 时间文字用 `_engine.Time`。
             //   尾部解复用把较短的那路流(DASH 的音轨)读完时, Position 会先飘到 ~1.0 而
             //   Time 还在走 —— 两源一错位, 进度条就"提前满格卡住"。统一从 Time 派生后
             //   两者的行为永远一致(播完钉满格的规则不变)。
             // Slider 0-1000, 按比例(_updatingSlider 防止回写触发 ValueChanged 造成 seek 循环)
-            var ms = _ended ? _engine.Length : GetDisplayedTimeMs(_engine.Length);
-            var pos = ms / (double)_engine.Length; // 0.0~1.0
+            var ms = _ended ? length : GetDisplayedTimeMs(length);
+            var pos = ms / (double)length; // 0.0~1.0
             if (_ended) pos = 1;
             if (!_isSeeking)
             {
@@ -440,7 +447,7 @@ public partial class PlayerWindow : FluentWindow
                 _updatingSlider = false;
             }
             TimeText.Text = $"{FormatClock(TimeSpan.FromMilliseconds(ms))} / " +
-                            $"{FormatClock(TimeSpan.FromMilliseconds(_engine.Length))}";
+                            $"{FormatClock(TimeSpan.FromMilliseconds(length))}";
         }
     }
 
