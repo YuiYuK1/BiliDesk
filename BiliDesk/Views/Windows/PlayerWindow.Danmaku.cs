@@ -296,6 +296,9 @@ public partial class PlayerWindow : FluentWindow
         // 落在窗口边缘缩放带里的按下是"拖边缘改大小", 不算视频区手势(见 TryBeginEdgeResize)
         if (TryBeginEdgeResize()) { e.Handled = true; return; }
         if (_engine == null) return;
+        // ★ 2026-11-24: “已播完”/自动连播倒计时遮罩可见时，点在遮罩空白处也会被视频区
+        //   手势当成单击 → OnPlayPauseClick → _ended → 重播。只有遮罩里的按钮才该响应。
+        if (_ended || EndOverlay?.Visibility == Visibility.Visible) return;
         // 点视频区会把焦点交给那层浮动覆盖窗口/原生视频窗口, 顺手把键盘焦点收回 WPF 树
         RestoreKeyboardFocus();
         // 点击控制栏(播放/清晰度/弹幕区域等)不作为视频区手势, 否则会误触发"单击暂停"
@@ -356,6 +359,12 @@ public partial class PlayerWindow : FluentWindow
     /// <summary>视频区左键松开: 若是长按 → 恢复 1x; 否则延迟触发播放/暂停(给双击留窗口)</summary>
     private void OnVideoAreaMouseLeftUp(object sender, MouseButtonEventArgs e)
     {
+        // 遮罩上的点击只留给遮罩里的按钮；空白处不算视频区单击(否则会重播)
+        if (_ended || EndOverlay?.Visibility == Visibility.Visible)
+        {
+            _videoGestureActive = false;
+            return;
+        }
         // ★★ 进度条拖动中(2026-11-20): 这次 Up 属于进度条, 必须原样放行。
         //   进度条捕获了鼠标, 而这里是**隧道**阶段的祖先 —— 比 Slider 自己的
         //   PreviewMouseLeftButtonUp 先跑。用户把指针拖出控制栏再松手时,
