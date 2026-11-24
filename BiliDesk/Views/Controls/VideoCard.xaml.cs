@@ -506,7 +506,8 @@ public partial class VideoCard : UserControl
             return;
         }
 
-        Svc.Player.PlayVideo(v.Bvid, v.Title);
+        // Cid 只有历史记录会填(最后观看的分P)；其它列表为 0，走原来的第一P。
+        Svc.Player.PlayVideo(v.Bvid, v.Title, cid: v.Cid);
     }
 
     private void OnClick(object sender, MouseButtonEventArgs e)
