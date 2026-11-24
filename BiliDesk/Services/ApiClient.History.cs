@@ -129,11 +129,97 @@ public partial class ApiClient
     private long _liveCursorViewAt;
     private long _liveCursorMax;
 
+    /// <summary>
+    /// 视频历史分P补充接口的游标。
+    ///
+    /// ★ 为什么不能只信 /x/v2/history：实测它对多P视频的 `page` 对象会**一直停在 P1**
+    ///   (用户从 P4 退出，旧接口仍返回 cid=P1/progress=346)，而 cursor 接口的
+    ///   `history.cid/page/part` 是准确的。列表元数据仍用旧接口(它带 stat.view)，
+    ///   分P信息用 cursor 覆盖。
+    /// </summary>
+    private long _cloudCursorMax;
+    private long _cloudCursorViewAt;
+    private string _cloudCursorBusiness = "";
+
+    /// <summary>重置视频历史分P补充接口的游标(重新从头拉之前调)。</summary>
+    public void ResetCloudHistoryCursor()
+    {
+        _cloudCursorMax = 0;
+        _cloudCursorViewAt = 0;
+        _cloudCursorBusiness = "";
+    }
+
     /// <summary>重置直播历史游标(重新从头拉之前调, 否则第 2 页会接着上次的位置)</summary>
     public void ResetLiveHistoryCursor()
     {
         _liveCursorViewAt = 0;
         _liveCursorMax = 0;
+    }
+
+    /// <summary>
+    /// 用 /x/web-interface/history/cursor 的 `history` 对象覆盖列表项的 Cid/Page/Part。
+    ///
+    /// 旧接口 /x/v2/history 的 `page` 字段在多P视频上不可靠(实测永远 P1)，但它的
+    /// stat.view 等元数据更全；所以两边都取，cursor 只负责“最后看到哪一P”。
+    /// 游标按页推进；pn==1 时从头开始。
+    /// </summary>
+    private async Task OverrideCloudHistoryPagesAsync(List<VideoItem> items, int ps, bool reset)
+    {
+        if (items.Count == 0) return;
+        if (reset) ResetCloudHistoryCursor();
+
+        try
+        {
+            var (code, _, data) = await GetJsonAsync(
+                "https://api.bilibili.com/x/web-interface/history/cursor",
+                new Dictionary<string, string>
+                {
+                    ["max"] = _cloudCursorMax.ToString(),
+                    ["view_at"] = _cloudCursorViewAt.ToString(),
+                    ["business"] = _cloudCursorBusiness,
+                    ["ps"] = ps.ToString()
+                },
+                sign: true,
+                referer: "https://www.bilibili.com/account/history");
+            if (code != 0 || data == null) return;
+            if (data.Value.ValueKind != JsonValueKind.Object) return;
+
+            if (data.Value.TryGetProperty("cursor", out var cursor) &&
+                cursor.ValueKind == JsonValueKind.Object)
+            {
+                _cloudCursorMax = GetLong(cursor, "max");
+                _cloudCursorViewAt = GetLong(cursor, "view_at");
+                _cloudCursorBusiness = GetStr(cursor, "business");
+            }
+
+            if (!data.Value.TryGetProperty("list", out var list) ||
+                list.ValueKind != JsonValueKind.Array) return;
+
+            var lastPages = new Dictionary<string, (long Cid, int Page, string Part)>(
+                StringComparer.Ordinal);
+            foreach (var h in list.EnumerateArray())
+            {
+                if (h.ValueKind != JsonValueKind.Object) continue;
+                if (!h.TryGetProperty("history", out var hist) ||
+                    hist.ValueKind != JsonValueKind.Object) continue;
+                var bvid = GetStr(hist, "bvid");
+                var cid = GetLong(hist, "cid");
+                if (string.IsNullOrEmpty(bvid) || cid <= 0) continue;
+                lastPages[bvid] = (cid, GetInt(hist, "page"), GetStr(hist, "part"));
+            }
+
+            foreach (var it in items)
+            {
+                if (!lastPages.TryGetValue(it.Bvid, out var last)) continue;
+                it.Cid = last.Cid;
+                it.Page = last.Page;
+                it.Part = last.Part;
+            }
+        }
+        catch
+        {
+            // 补充信息失败时保留旧接口给的数据，不影响历史列表本身。
+        }
     }
 
     /// <summary>获取登录用户的云端观看历史(x/v2/history, 分页)。
@@ -223,6 +309,9 @@ public partial class ApiClient
                     });
                 }
             }
+            // 旧接口的 page 对象对多P视频会停在 P1；用 cursor 的 history 覆盖。
+            // 失败不影响列表(顶多回到旧行为)。
+            await OverrideCloudHistoryPagesAsync(items, ps, reset: pn <= 1);
             return (true, null, items);
         }
         catch (Exception ex)
