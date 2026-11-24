@@ -56,18 +56,27 @@ public class StallRecoveryPolicyTests
     }
 
     [Fact]
-    public void 位置一推进就还清重建预算()
+    public void 重建后短暂推进不还预算_连续健康二十秒才还()
     {
         var p = new StallRecoveryPolicy();
         p.Tick(0, true, true);
         Assert.Equal(StallRecoveryAction.Rebuild, p.Tick(10_000, true, true));
         Assert.Equal(1, p.Rebuilds);
 
-        p.OnAdvance();     // 画面回来了
+        p.OnAdvance();     // 重建后从 0 定位到目标: 位置确实推进了一次
         Assert.False(p.IsFrozen);
+        Assert.Equal(1, p.Rebuilds);   // 但预算不能立刻归零
+
+        // 只健康了几秒: 仍保留第 1 次重建后的预算
+        Assert.Equal(StallRecoveryAction.None, p.Tick(11_000, false, true));
+        Assert.Equal(StallRecoveryAction.None, p.Tick(20_000, false, true));
+        Assert.Equal(1, p.Rebuilds);
+
+        // 连续正常播放满 20s: 预算归还
+        Assert.Equal(StallRecoveryAction.None, p.Tick(31_000, false, true));
         Assert.Equal(0, p.Rebuilds);
 
-        // 下一次卡顿重新拥有完整的 3 次机会
+        // 下一次卡顿重新拥有完整 3 次机会
         p.Tick(100_000, true, true);
         Assert.Equal(StallRecoveryAction.Rebuild, p.Tick(110_000, true, true));
         Assert.Equal(1, p.Rebuilds);

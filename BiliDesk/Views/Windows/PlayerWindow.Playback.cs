@@ -920,10 +920,12 @@ public partial class PlayerWindow : FluentWindow
             return;
         }
 
-        // 位置推进了 -> 卡顿结束。只收我们自己弹的那张遮罩
+        // 位置推进了 -> 卡顿结束。只收我们自己弹的那张遮罩。
+        // ★ 用 Tick(frozen:false) 而不是 OnAdvance: 重建后短暂推进不能立刻还预算,
+        //   要连续正常播放 HealthyResetMs 才归还(见 StallRecoveryPolicy)。
         _stallLastMs = now;
         _stallTicks = 0;
-        _stallPolicy.OnAdvance();
+        _stallPolicy.Tick(Environment.TickCount64, frozen: false, recoverable: true);
         HideBufferingIfShown();
     }
 

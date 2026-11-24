@@ -109,7 +109,15 @@ public partial class PlayerWindow : FluentWindow
             }
 
             // ② 同一条线路已经卡死过两次: 换一条候选 CDN 再试(只影响"下次重建用的地址")。
-            if (_stallPolicy.Rebuilds >= 2) UseBackupUrlIfAny();
+            if (_stallPolicy.Rebuilds >= 2)
+            {
+                // ★ 2026-11-24: 第二次重建必须强制重取 playurl。实测坏线路会被反复选中,
+                //   只换候选有时 _backups 已经空了, 结果三次重建都回到同一个 host。
+                await RefreshPlayUrlAsync();
+                if (_closing || gen != _loadGen) return;
+                if (_isSeeking || _pendingSeekMs >= 0) return;
+                UseBackupUrlIfAny();
+            }
 
             // ③ 起新 input, 位置接回来。聆听态由 RebuildMediaAndSeek 自己挑音轨地址。
             var resume = _lastKnownMs > 0 ? _lastKnownMs : 0;

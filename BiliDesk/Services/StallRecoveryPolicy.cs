@@ -55,8 +55,20 @@ public sealed class StallRecoveryPolicy
     /// <summary>两次重建之间的退避(第 1/2/3 次之后)。给新 input 留出起播时间。</summary>
     private static readonly long[] BackoffMs = { 8_000, 15_000, 25_000 };
 
+    /// <summary>
+    /// 重建后要连续正常播放多久，才把重建预算还回去。
+    ///
+    /// ★ 不能"位置一推进就 Reset"：重建后新 input 会从 0 定位到目标，位置必然推进一次；
+    ///   随后若又冻住，预算已被清零，日志就会永远显示"第1次"，也永远走不到
+    ///   第 2 次该做的"换候选线路"——这正是"反复重新加载同一条坏 CDN"的死循环。
+    /// </summary>
+    public const long HealthyResetMs = 20_000;
+
     /// <summary>本次"卡住"从哪一刻开始(TickCount64, -1 = 当前没卡住)</summary>
     private long _frozenSince = -1;
+
+    /// <summary>连续正常播放的起点; -1 = 还没开始计时</summary>
+    private long _healthySince = -1;
 
     /// <summary>下一次允许重建的时刻(TickCount64)</summary>
     private long _nextAttemptAt = long.MaxValue;
@@ -80,21 +92,28 @@ public sealed class StallRecoveryPolicy
     public void Reset()
     {
         _frozenSince = -1;
+        _healthySince = -1;
         _nextAttemptAt = long.MaxValue;
         _rebuilds = 0;
         _gaveUp = false;
     }
 
-    /// <summary>位置推进了: 卡顿结束, 重建预算一并作废(下次卡顿重新拥有 3 次机会)</summary>
-    public void OnAdvance() => Reset();
+    /// <summary>
+    /// 位置推进了: 只清"冻结起点", 不立刻还预算。
+    /// 重建后新 input 会从 0 定位到目标, 位置必然推进一次; 若随即又冻住,
+    /// 预算若被清零就会永远停在"第1次", 也永远走不到第 2 次的换线路。
+    /// </summary>
+    public void OnAdvance()
+    {
+        _frozenSince = -1;
+    }
 
-    /// <summary>位置不再冻结(暂停 / seek / 播完等): 只清"冻结起点", 保留重建预算与退避。</summary>
-    /// <remarks>
-    /// ★ 为什么不能顺手 <see cref="Reset"/>: 重建后 LibVLC 会先进入 Opening/Buffering,
-    ///   那几秒位置本来就不动, 调用方会走这个分支。如果这里把预算也清了, 就会
-    ///   "重建 → 归零 → 再重建"无限循环 —— 正是 _seekRebuildTried 那条注释里踩过的坑。
-    /// </remarks>
-    public void OnUnfrozen() => _frozenSince = -1;
+    /// <summary>位置不再冻结(暂停 / seek / 播完等): 只清冻结起点, 保留重建预算与退避。</summary>
+    public void OnUnfrozen()
+    {
+        _frozenSince = -1;
+        _healthySince = -1;
+    }
 
     /// <summary>
     /// 心跳调用一次。返回此刻该执行的动作。
@@ -109,9 +128,16 @@ public sealed class StallRecoveryPolicy
         if (!frozen)
         {
             _frozenSince = -1;
+            // 重建后连续正常播放足够久, 才把预算还回去; 短暂"起播→定位"不算恢复。
+            if (_rebuilds > 0)
+            {
+                if (_healthySince < 0) _healthySince = nowMs;
+                else if (nowMs - _healthySince >= HealthyResetMs) Reset();
+            }
             return StallRecoveryAction.None;
         }
 
+        _healthySince = -1;
         if (_frozenSince < 0) _frozenSince = nowMs;
         var age = nowMs - _frozenSince;
 
