@@ -78,17 +78,18 @@ public partial class PlayerWindow : FluentWindow
     /// ★ 上下文必须在 ResetForNewMedia **之前**写好: 那个方法负责清每片状态,
     ///   而这份选集表是**跨片保持**的(同一季连播几集都用它)。
     /// </summary>
-    public void PlayVideo(string bvid, BangumiPlaylist? bangumi = null)
+    public void PlayVideo(string bvid, BangumiPlaylist? bangumi = null, long cid = 0)
     {
         if (_closing || string.IsNullOrEmpty(bvid)) return;
-        if (bvid == _currentBvid && _engine.IsPlaying) return;
+        // 同一个视频、同一个分P才早退；同 bvid 换分P(历史记录点回某一P)必须重新加载。
+        if (bvid == _currentBvid && _engine.IsPlaying && (cid <= 0 || cid == _currentCid)) return;
         try { _engine.Stop(); } catch { }
         _currentBvid = bvid;
         _isLocalPlayback = false;
         _isLive = false;
         SetBangumiPlaylist(bangumi);
         ResetForNewMedia();
-        _ = LoadVideoAsync();
+        _ = LoadVideoAsync(cid);
     }
 
     // ------------------------------------------------------------ 简介折叠 + 相关视频(2026-10-12)

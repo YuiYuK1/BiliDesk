@@ -647,6 +647,7 @@ public class HistoryViewModel : VideoListSelectionViewModel
             return;
         }
         if (string.IsNullOrEmpty(item.Bvid)) return;
-        Svc.Player.PlayVideo(item.Bvid, item.Title);
+        // cid = 历史记录里最后观看的那一分P；没有(0)时回落到详情页第一P。
+        Svc.Player.PlayVideo(item.Bvid, item.Title, cid: item.Cid);
     }
 }

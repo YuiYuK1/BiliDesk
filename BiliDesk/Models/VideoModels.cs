@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -75,6 +75,22 @@ public class VideoItem : System.ComponentModel.INotifyPropertyChanged
     ///   就是拿它比对全局集合的, 缺了按钮永远不亮。
     /// </summary>
     public long Aid { get; set; }
+
+    /// <summary>
+    /// 历史记录里"最后观看的那一分P"的 cid。0 表示该来源没给(或不是分P视频)，
+    /// 播放时回落到详情接口的 pages[0]。
+    ///
+    /// ★ 历史接口 /x/v2/history 的顶层 `cid` 是**第一P**，真正最后看的那一P在
+    ///   `page` 对象里(`page.cid` / `page.page` / `page.part`)。只读顶层 cid 会让
+    ///   合集/多P视频永远从第一集开始 —— 这就是这个字段存在的原因。
+    /// </summary>
+    public long Cid { get; set; }
+
+    /// <summary>历史记录里最后观看的分P序号(1-based)；0 = 未知。</summary>
+    public int Page { get; set; }
+
+    /// <summary>历史记录里最后观看的分P标题，可能为空。</summary>
+    public string Part { get; set; } = "";
 
     /// <summary>
     /// 补齐 avid: 接口给了就用接口的, 没给就按 bvid 本地换算(见 UrlParser.BvToAv,

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -165,6 +165,29 @@ public partial class ApiClient
                     if (h.ValueKind != JsonValueKind.Object) continue;
                     var bvid = GetStr(h, "bvid");
                     if (string.IsNullOrEmpty(bvid)) continue;
+                    // ★ 历史接口顶层 cid 是"第一P"; 最后看到哪一P在 page 对象里。
+                    //   合集/多P视频只用顶层 cid 会永远从 P1 起播。
+                    var cid = GetLong(h, "cid");
+                    var pageNo = 0;
+                    var part = "";
+                    if (h.TryGetProperty("page", out var pageObj) &&
+                        pageObj.ValueKind == JsonValueKind.Object)
+                    {
+                        var pageCid = GetLong(pageObj, "cid");
+                        if (pageCid > 0) cid = pageCid;
+                        pageNo = GetInt(pageObj, "page");
+                        part = GetStr(pageObj, "part");
+                    }
+                    else if (h.TryGetProperty("history", out var historyObj) &&
+                             historyObj.ValueKind == JsonValueKind.Object)
+                    {
+                        // 新版 cursor 接口把同样的字段放在 history 对象里；兼容一下，
+                        // 以后切接口时不用再改这一处。
+                        var pageCid = GetLong(historyObj, "cid");
+                        if (pageCid > 0) cid = pageCid;
+                        pageNo = GetInt(historyObj, "page");
+                        part = GetStr(historyObj, "part");
+                    }
                     // 新旧版字段兼容: pic/cover, author_name/owner.name
                     var cover = GetStr(h, "pic");
                     if (cover.Length == 0 && h.TryGetProperty("covers", out var covers) &&
@@ -182,6 +205,9 @@ public partial class ApiClient
                     {
                         Bvid = bvid,
                         Aid = GetLong(h, "aid"),
+                        Cid = cid,
+                        Page = pageNo,
+                        Part = part,
                         Title = GetStr(h, "title").StripHtml(),
                         Cover = UrlUtil.Normalize(cover),
                         Author = author,
