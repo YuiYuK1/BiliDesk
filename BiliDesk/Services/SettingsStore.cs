@@ -342,6 +342,13 @@ public class SettingsStore
     public AudioTier PreferredAudioTier { get; set; } = AudioTier.Auto;
 
     /// <summary>
+    /// 音频重采样档位(2026-11-22 新增, 修 1.8.3 的"蓝牙耳机一卡一卡")。
+    /// 默认 Auto: 非蓝牙端点 speex(音质), 蓝牙端点 any(兼容)。
+    /// 与 <see cref="Models.AppSettings.AudioResamplerMode"/> 是读写契约。
+    /// </summary>
+    public AudioResamplerMode AudioResamplerMode { get; set; } = AudioResamplerMode.Auto;
+
+    /// <summary>
     /// 下次打开视频时自动跳到此前的观看进度(默认开)。
     /// 关闭后仍然记录进度, 只是不自动跳转 —— 给"想从头再看一遍"的用户留一个入口。
     /// </summary>
@@ -530,6 +537,20 @@ public class SettingsStore
     /// ★ 默认关: 只有部分声卡/蓝牙耳机在暂停→恢复时爆音、断连的用户才需要开。
     /// </summary>
     public bool AudioStreamSilence { get; set; }
+
+    /// <summary>
+    /// 是否允许硬件解码(默认开)。2026-11-22, issue #119。
+    /// ★ mpv 分支实际用 <see cref="HwdecMode"/> 选后端; 这个开关保留给旧的设置页/配置。
+    /// </summary>
+    public bool HardwareDecodingEnabled { get; set; } = true;
+
+    /// <summary>设置是否允许硬件解码并落盘</summary>
+    public void SetHardwareDecodingEnabled(bool enabled)
+    {
+        if (HardwareDecodingEnabled == enabled) return;
+        HardwareDecodingEnabled = enabled;
+        Save();
+    }
 
     /// <summary>
     /// 上次用的搜索类别(见 <see cref="Models.ContentKind"/>: 0=视频 1=直播间 2=番剧 3=UP主)。
@@ -930,6 +951,9 @@ public class SettingsStore
         // 音质档位: 手改配置可能塞进 30251 之外的数字 ⇒ 一律落回「自动」。
         PreferredAudioTier = AudioPreference.Normalize(s.PreferredAudioTier);
 
+        // 音频重采样(2026-11-22): 同理, 非法值落回「自动」(蓝牙看端点、其它用 speex)。
+        AudioResamplerMode = AudioResamplerPreference.Normalize(s.AudioResamplerMode);
+
         // 播放器窗口大小记忆(2026-11-03 新增): 老配置没有这三个字段 ⇒
         // AppSettings 的初始化值就是"开启 + 尚未记过尺寸(0)", 不需要版本兼容。
         // ★ 宽高必须夹取/丢弃: 手改配置可能塞进负数或离谱值, 直接拿去设 Width 会让窗口
@@ -981,6 +1005,10 @@ public class SettingsStore
 
         // 暂停时保持音频流(mpv --audio-stream-silence); 老配置缺字段 ⇒ false。
         AudioStreamSilence = s.AudioStreamSilence;
+
+        // 硬件解码(2026-11-22, issue #119): 老配置没有这个字段 ⇒ null ⇒ 默认开启。
+        // 用可空接是为了区分“没写过”与“明确关掉”, 与 AutoBufferPolicy 同一套约定。
+        HardwareDecodingEnabled = s.HardwareDecodingEnabled ?? true;
 
         // 上次的搜索类别: 老配置没这个字段 ⇒ 视频(与搜索页初始类别一致)。
         SearchKind = Enum.IsDefined(typeof(ContentKind), s.LastSearchKind)
@@ -1165,6 +1193,7 @@ public class SettingsStore
         PlayerVolume = PlayerVolume,
         PreferHighQualityAudio = PreferHighQualityAudio,
         PreferredAudioTier = PreferredAudioTier,
+        AudioResamplerMode = AudioResamplerMode,
         AutoResume = AutoResume,
         ShowRelatedVideos = ShowRelatedVideos,
         AutoPlayNext = AutoPlayNext,
@@ -1185,6 +1214,7 @@ public class SettingsStore
         AutoBufferPolicy = AutoBufferPolicy,
         HwdecMode = HwdecMode,
         AudioStreamSilence = AudioStreamSilence,
+        HardwareDecodingEnabled = HardwareDecodingEnabled,
         LastSearchKind = (int)SearchKind
     };
 

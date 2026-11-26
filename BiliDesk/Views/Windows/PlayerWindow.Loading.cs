@@ -626,6 +626,10 @@ public partial class PlayerWindow : FluentWindow
         SetBangumiPlaylist(null);  // 直播间没有"番剧选集"这回事
         ResetForNewMedia();
         if (!string.IsNullOrEmpty(roomTitle)) VideoTitleText.Text = roomTitle;
+        // 上/下一个视频(2026-11-25): 直播间和点播视频一样算"一条"。
+        // ★ 房名拿不到时用"直播间 {roomId}"兜底 —— 箭头 ToolTip 不能是一片空白。
+        NoteHistoryOpened(PlayerHistoryEntry.ForLive(roomId,
+            string.IsNullOrWhiteSpace(roomTitle) ? $"直播间 {roomId}" : roomTitle));
         _ = LoadLiveAsync(roomId);
     }
 
@@ -776,6 +780,8 @@ public partial class PlayerWindow : FluentWindow
         // 本地文件没有 bvid, 自然也没有相关视频
         ClearRelatedPanel();
         LoadLocalFile(path);
+        // 上/下一个视频(2026-11-25): 本地文件同样算"一条"(标题与 LoadLocalFile 保持一致)。
+        NoteHistoryOpened(PlayerHistoryEntry.ForLocal(path, Path.GetFileNameWithoutExtension(path)));
     }
 
     /// <summary>
@@ -1018,6 +1024,13 @@ public partial class PlayerWindow : FluentWindow
         //   _loadGen 作废旧结果; 但闸门留着会让新片的第一次卡顿永远等不到重建。
         _stallPolicy.Reset();
         _stallRecoveryInFlight = false;
+        // 画面输出冻结自愈同样属于"这一片": 换片后重新观察新片的 DisplayedPictures,
+        // 上一片的恢复预算/在途闸/放弃提示都不能带过来。
+        _voutPolicy.Reset();
+        _voutRecoveryInFlight = false;
+        _lastVoutSampleAt = -1;
+        _voutGiveUpToasted = false;
+        _voutStatsUnavailableLogged = false;
         _backups.Clear();
         _playUrlDeadline = 0;
         _playUrlFetchedAt = 0;
@@ -1165,6 +1178,9 @@ public partial class PlayerWindow : FluentWindow
         // 卡顿自愈与播放地址保鲜(2026-11-14, issue #81): 都属于"这一片" ——
         // 换片后重建预算、地址到期时间、在途闸全部要重来。
         nameof(_stallRecoveryInFlight),
+        // 画面输出冻结自愈(2026-11-22, issue #119): 采样时刻/在途闸/放弃提示都属于"这一片"。
+        nameof(_lastVoutSampleAt), nameof(_voutRecoveryInFlight),
+        nameof(_voutGiveUpToasted), nameof(_voutStatsUnavailableLogged),
         nameof(_playUrlDeadline), nameof(_playUrlFetchedAt),
         nameof(_urlRefreshAttemptAt), nameof(_urlRefreshInFlight),
         nameof(_playUrlRefreshedAt), nameof(_errorRecoveryTried),
@@ -1292,6 +1308,7 @@ public partial class PlayerWindow : FluentWindow
         //   清了第二集就变成"普通视频", 选集面板与连播链一起消失。
         nameof(_bangumi),
         nameof(_isFillWindow),       // 「铺满窗口」是窗口级的显示模式(同 _isFullscreen), 换片不该把它弹回去
+        nameof(_isMiniWindow),       // 「小窗」同理: 窗口级的显示模式, 换片/连播下一集仍留在小窗里
         nameof(_commentSort),        // 评论排序是用户看评论的习惯(同 _seasonOpen): 选过一次就一直是那个顺序
         nameof(_isListenMode),       // 「听视频」是窗口级的播放模式(同 _isFullscreen): 换片不该把它弹回视频
         // hover 预览锁是"上一次操作的瞬时反馈"(750ms 自己过期, 与片源无关), 不属于任何一片
@@ -1342,6 +1359,10 @@ public partial class PlayerWindow : FluentWindow
         //   换片时若清成 false, 那条在途链回来仍会按 loadGen 自行作废; 清了反而多一个
         //   "闸门被外力打开"的窗口, 让第二次点击另起一条链。
         nameof(_listenSwitching),
+        // 上/下一个视频(2026-11-25)的换片闸: 与 _listenSwitching 同类 —— async 停流期间的
+        //   防重入标记, 由自己的 finally 收尾。★ 特别注意**不能清**: ResetForNewMedia 正是在
+        //   这个闸门里面调用的, 清成 false 等于把闸门打开, 第二次点箭头会另起一条加载链。
+        nameof(_switchingHistory),
         // 「播放页」按钮的状态广播缓存: 它记的是"上一次通知出去的值", 换片时新片一开播
         //   就会由 UpdatePlayButton 重新收敛(暂停/停止 → 播放必有一次变化), 不需要清。
         nameof(_reportedIsPlaying),
@@ -1499,6 +1520,9 @@ public partial class PlayerWindow : FluentWindow
         // 聆听态是跨窗口复用的窗口级模式: 复用一个"上次停在聆听态"的窗口时,
         // 顶栏按钮与遮罩都要还原成聆听态(否则按钮说"听视频"、实际播的是音轨)
         if (_isListenMode) ApplyListenMode(true);
+        // 上/下一个视频(2026-11-25): 历史是进程级的, 新窗口一打开就按现有的栈摆好箭头状态
+        // (随后的 LoadVideoAsync 会再记一次账并刷新)。
+        UpdateHistoryButtons();
         // 覆盖层窗口(VideoView 的 ForegroundWindow)这时才建出来 —— 把键盘处理也挂上去,
         // 否则点过一次视频/控制栏之后快捷键就全哑了(见 HookOverlayKeyboard 的说明)
         HookOverlayKeyboard();
@@ -1556,6 +1580,10 @@ public partial class PlayerWindow : FluentWindow
             _ownerMid = detail.OwnerMid;
             _ownerName = detail.Owner;
             UpdateUiFromDetail(detail);
+            // 上/下一个视频(2026-11-25): 详情到手、cid 已确定 ⇒ 这一条**真的打开了**, 记进历史。
+            // ★ 放在这里而不是方法开头: 详情取不到 / 视频已删这些失败分支不该进历史。
+            NoteHistoryOpened(PlayerHistoryEntry.ForVideo(
+                _currentBvid, _currentCid, detail.Title, _bangumi));
             // 标签: 与字幕/相关视频同款, 后台取, 不挡起播(失败静默, 见 LoadVideoTagsAsync)
             _ = LoadVideoTagsAsync(gen, _currentBvid);
             // 合集数据在详情里就已经解析好了(见 ApiClient.GetVideoAsync), 这里零额外请求。
@@ -1787,6 +1815,16 @@ public partial class PlayerWindow : FluentWindow
     {
         try
         {
+            // ★ 2026-11-22(issue #119): 所有新 input 都从这里走, 软解开关只在这一处加。
+            //   用**媒体级**选项而不是进程级 `--avcodec-hw`: ① 不需要重启应用;
+            //   ② 画面冻结自愈可以在运行中把后续 Media 切成软解, 不必重建 LibVLC 实例。
+            //   ★ aout 选项不能走媒体级(见 VlcCore.PrepareForNewPlayer), 但解码器是 input
+            //     的子对象, 会继承 Media 上的选项 —— 这条路径与 `:demux` / `:network-caching`
+            //     同类; 交付前需用探针复核原生日志确实从 D3D11VA 切到软件解码。
+            if (PlaybackCompatibility.ShouldDisableHardwareDecoding)
+            {
+                try { media.AddOption(":avcodec-hw=none"); } catch { /* 选项加不上就按原样播 */ }
+            }
             // ★ 2026-11-19(issue #88): 每次起一条新 input 都换代次。
             //   旧 input 排队中的 Playing/EndReached/TimeChanged 会因为这个比对失败被丢弃,
             //   不会再把"上一条播完了/上一条的时间"写到新片身上。

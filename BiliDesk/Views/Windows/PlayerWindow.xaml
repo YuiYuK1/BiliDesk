@@ -1296,6 +1296,22 @@
                         </StackPanel>
                     </Button>
 
+                    <!-- 小窗播放(2026-11-25, issue #127): 播放器缩成一颗置顶的 16:9 小窗, 浮在别的
+                         窗口上面 —— 给"边打游戏边看攻略视频"用。顶栏与信息栏都收起, 小窗里靠浮层
+                         右上角的小窗栏(MiniWindowBar)拖动 / 还原 / 关闭, Esc 也能还原。
+                         ★ 图标用自带的矢量(Themes/FloatingIcons.xaml), 描边色绑按钮前景 ——
+                           全局隐式 TextBlock 样式会吃掉字体字形的前景色(铺满窗口按钮踩过的坑)。 -->
+                    <Button x:Name="BtnMiniWindow" Style="{StaticResource BareIconButtonStyle}"
+                            Width="34" Height="34"
+                            ToolTip="小窗播放（置顶小窗）" Click="OnMiniWindowClick"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                        <Path Data="{StaticResource MiniWindowIconGeometry}" Width="18" Height="18"
+                              Stretch="Uniform"
+                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                              StrokeThickness="1.6" StrokeLineJoin="Round"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                    </Button>
+
                     <!-- 铺满窗口(2026-10-04 按用户要求把这里原来是"全屏"的功能改成它):
                          点了之后视频铺满**顶栏以下的整个窗口宽度**, 右侧信息栏整个收起
                          (不再占任何显示空间), 窗口尺寸本身完全不变; 再点一次还原。
@@ -1318,6 +1334,40 @@
                         <TextBlock x:Name="FillWindowGlyph" Text="&#xE9A6;"
                                    FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
                                    FontSize="14" />
+                    </Button>
+
+                    <!-- 上一个 / 下一个视频(2026-11-25, 用户要求: 箭头表示 —— 左 = 上一个, 右 = 下一个;
+                         位置由用户指定: 顶栏「铺满窗口」右边)。
+                         ★ 语义是浏览器式后退/前进(记录见 PlayerHistoryStack): 左箭头回到上一条看过的,
+                           右箭头回到后退之前所在的那条; 没有可去的方向时置灰(不收起, 收起会让后面的
+                           窗口控件横跳)。ToolTip 里带目标标题。真实状态由代码同步(UpdateHistoryButtons)。
+                         ★ 图标画 chevron 而不是实心三角: 视频画面上的播放键就是实心三角, 形状必须拉开。
+                         ★ 描边色绑按钮前景(与隔壁两颗线性图标同款): 全局隐式 TextBlock 样式会吃掉
+                           字体字形的前景色, 用矢量 + Foreground 绑定才在深浅主题下都对。
+                         ★ 顶栏在小窗/全屏时整个收起(见 EnterMiniWindow / ApplyFullscreen), 那时这两颗
+                           箭头自然不可见 —— 快捷键 Alt+←/→ 不受影响。
+                         ★ IsEnabled=False 只是"还没记账"的初值。 -->
+                    <Button x:Name="BtnPrevVideo" Style="{StaticResource BareIconButtonStyle}"
+                            Width="34" Height="34" IsEnabled="False"
+                            ToolTip="上一个视频 (Alt+←)" Click="OnPrevVideoClick"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                        <!-- 16×16 画布、1.6px 描边、圆头: 与 FloatingIcons 的线性图标同一种观感。
+                             ★ 不写 Stretch —— 几何本身就是 16 画布内的坐标, 拉伸会把描边一起放大。 -->
+                        <Path Width="16" Height="16"
+                              Data="M 10,3.5 L 5.5,8 L 10,12.5"
+                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                              StrokeThickness="1.6" StrokeLineJoin="Round"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                    </Button>
+                    <Button x:Name="BtnNextVideo" Style="{StaticResource BareIconButtonStyle}"
+                            Width="34" Height="34" IsEnabled="False"
+                            ToolTip="下一个视频 (Alt+→)" Click="OnNextVideoClick"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                        <Path Width="16" Height="16"
+                              Data="M 6,3.5 L 10.5,8 L 6,12.5"
+                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                              StrokeThickness="1.6" StrokeLineJoin="Round"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
                     </Button>
 
                     <!-- 最小化 / 最大化 / 关闭。
@@ -2269,6 +2319,43 @@
                                     </Border>
                                 </Popup>
                             </Grid>
+
+                            <!-- ============ 小窗栏(2026-11-25, issue #127 小窗模式) ============
+                                 小窗里顶栏是收起的(整颗窗口只剩视频), 这条小栏是它唯一的"窗口控件":
+                                 拖动抓手 + 还原 + 关闭。
+                                 ★ 放在 ControlBar **之后**: 两者同在浮层窗口里, 后声明的盖在前面。
+                                 ★ 不参与控制栏的"播放时自动隐藏": 它是窗口控件, 跟着藏起来的话
+                                   窗口就拖不动也关不掉(ShouldHideControls 只管 ControlBar)。
+                                 ★ 配色写死深色: 它永远压在视频画面上, 跟主题走的话浅色主题下
+                                   就是浅字压亮画面(字幕层同一个坑)。
+                                 ★ Cursor="Arrow": HideControls 会把 VideoAreaRoot 的指针设成 None,
+                                   小窗栏自己不盖一层的话, 指针停在它上面也会消失。 -->
+                            <Border x:Name="MiniWindowBar" VerticalAlignment="Top" HorizontalAlignment="Right"
+                                    Margin="10,10,10,0" Visibility="Collapsed" Cursor="Arrow"
+                                    CornerRadius="8" Background="#C0121318"
+                                    BorderBrush="#26FFFFFF" BorderThickness="1">
+                                <StackPanel Orientation="Horizontal">
+                                    <!-- 抓手: 整块透明, 按下即拖动(窗口跟着光标走, 见 BeginMiniWindowDrag) -->
+                                    <Border x:Name="MiniWindowGrip" Width="40" Height="30"
+                                            Background="Transparent" Cursor="SizeAll"
+                                            ToolTip="按住拖动小窗"
+                                            MouseLeftButtonDown="OnMiniGripMouseDown">
+                                        <TextBlock Text="&#xE700;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                   FontSize="13" Foreground="#F2FFFFFF"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <Button x:Name="BtnMiniRestore" Style="{StaticResource PlayerIconBtn}"
+                                            Click="OnMiniRestoreClick" ToolTip="还原 (Esc)">
+                                        <TextBlock Text="&#xE73F;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                   FontSize="13" Foreground="White" />
+                                    </Button>
+                                    <Button x:Name="BtnMiniClose" Style="{StaticResource PlayerIconBtn}"
+                                            Click="OnMiniCloseClick" ToolTip="关闭">
+                                        <TextBlock Text="&#xE711;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                   FontSize="12" Foreground="White" />
+                                    </Button>
+                                </StackPanel>
+                            </Border>
                         </Grid>
                 </controls:PlayerVideoView>
             </Grid>
