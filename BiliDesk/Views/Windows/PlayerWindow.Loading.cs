@@ -1815,16 +1815,7 @@ public partial class PlayerWindow : FluentWindow
     {
         try
         {
-            // ★ 2026-11-22(issue #119): 所有新 input 都从这里走, 软解开关只在这一处加。
-            //   用**媒体级**选项而不是进程级 `--avcodec-hw`: ① 不需要重启应用;
-            //   ② 画面冻结自愈可以在运行中把后续 Media 切成软解, 不必重建 LibVLC 实例。
-            //   ★ aout 选项不能走媒体级(见 VlcCore.PrepareForNewPlayer), 但解码器是 input
-            //     的子对象, 会继承 Media 上的选项 —— 这条路径与 `:demux` / `:network-caching`
-            //     同类; 交付前需用探针复核原生日志确实从 D3D11VA 切到软件解码。
-            if (PlaybackCompatibility.ShouldDisableHardwareDecoding)
-            {
-                try { media.AddOption(":avcodec-hw=none"); } catch { /* 选项加不上就按原样播 */ }
-            }
+            // mpv 分支的硬件解码由 Hwdec/HwdecMode 控制, 不再给 PlayerMedia 加 VLC 媒体选项。
             // ★ 2026-11-19(issue #88): 每次起一条新 input 都换代次。
             //   旧 input 排队中的 Playing/EndReached/TimeChanged 会因为这个比对失败被丢弃,
             //   不会再把"上一条播完了/上一条的时间"写到新片身上。

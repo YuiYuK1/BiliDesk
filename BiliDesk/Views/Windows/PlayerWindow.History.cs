@@ -135,7 +135,7 @@ public partial class PlayerWindow : FluentWindow
         _switchingHistory = true;
         try
         {
-            WriteLibVLCDebug(
+            PlayerLog.Write(
                 $"[History] 切换 → {entry.Kind} bvid={entry.Bvid} cid={entry.Cid} " +
                 $"room={entry.RoomId} {entry.Title}\n");
 

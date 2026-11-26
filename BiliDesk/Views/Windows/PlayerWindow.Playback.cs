@@ -968,7 +968,7 @@ public partial class PlayerWindow : FluentWindow
     /// </summary>
     private void UpdateVoutFreezeDetector(bool inSeekGrace)
     {
-        if (_closing || _mp == null) return;
+        if (_closing || _engine == null) return;
 
         // 直播/聆听/播完没有“画面输出”语义: 直接清窗口, 不采样。
         if (_isLive || _isListenMode || _ended)
@@ -983,7 +983,7 @@ public partial class PlayerWindow : FluentWindow
         _lastVoutSampleAt = now;
 
         var eligible =
-            _mp.IsPlaying
+            _engine.IsPlaying
             && !_isSeeking && _pendingSeekMs < 0 && !inSeekGrace
             && !_switchingQuality && !_stallRecoveryInFlight && !_voutRecoveryInFlight
             // 拖窗口边缘 / 全屏切换的尺寸重协商期间 vout 本来就可能短暂不出帧, 不算故障。
@@ -1014,7 +1014,7 @@ public partial class PlayerWindow : FluentWindow
         if (_voutPolicy.StatsUnavailable && !_voutStatsUnavailableLogged)
         {
             _voutStatsUnavailableLogged = true;
-            WriteLibVLCDebug(
+            PlayerLog.Write(
                 $"[Vout] 未收到 DisplayedPictures 增长, 统计可能不可用, 暂不自动恢复 " +
                 $"pos={posMs}ms display={displayed}\n");
         }
@@ -1022,7 +1022,7 @@ public partial class PlayerWindow : FluentWindow
         switch (action)
         {
             case VoutFreezeAction.Recover:
-                WriteLibVLCDebug(
+                PlayerLog.Write(
                     $"[Vout] 画面停止出帧: 第{_voutPolicy.Recoveries}次自动恢复 " +
                     $"pos={posMs}ms display={displayed} listen={_isListenMode} " +
                     $"softDecode={PlaybackCompatibility.ForceSoftwareDecode}\n");
@@ -1032,7 +1032,7 @@ public partial class PlayerWindow : FluentWindow
             case VoutFreezeAction.GiveUp:
                 if (_voutGiveUpToasted) break;
                 _voutGiveUpToasted = true;
-                WriteLibVLCDebug(
+                PlayerLog.Write(
                     $"[Vout] 自动恢复放弃(已恢复 {_voutPolicy.Recoveries} 次) pos={posMs}ms " +
                     $"display={displayed}\n");
                 Svc.Toast.Show(PlaybackCompatibility.ForceSoftwareDecode
@@ -1045,18 +1045,9 @@ public partial class PlayerWindow : FluentWindow
     /// <summary>读 `MediaStats.DisplayedPictures`; 拿不到返回 -1(原生对象可能正在拆解)。</summary>
     private int ReadDisplayedPictures()
     {
-        try
-        {
-            // `_mp.Media` 每次都会 retain 一份原生引用, 必须 using 掉;
-            // 每秒一次的包装分配可以忽略, 但不能泄漏原生 media。
-            using var media = _mp?.Media;
-            if (media == null) return -1;
-            return media.Statistics.DisplayedPictures;
-        }
-        catch
-        {
-            return -1;
-        }
+        // mpv 分支没有 VLC 的 MediaStats.DisplayedPictures; 画面冻结交给 VideoStalled。
+        // 返回 -1 让 policy 走 "统计不可用" 分支, 不会误触发 VLC 软解重建。
+        return -1;
     }
 
     /// <summary>
@@ -1070,7 +1061,7 @@ public partial class PlayerWindow : FluentWindow
     /// </summary>
     private async Task RecoverFromFrozenVoutAsync(long posMs)
     {
-        if (_closing || _mp == null || _voutRecoveryInFlight) return;
+        if (_closing || _engine == null || _voutRecoveryInFlight) return;
 
         var gen = _loadGen;
         _voutRecoveryInFlight = true;
@@ -1096,7 +1087,7 @@ public partial class PlayerWindow : FluentWindow
         }
         catch (Exception ex)
         {
-            WriteLibVLCDebug($"[Vout] 自愈异常: {ex}\n");
+            PlayerLog.Write($"[Vout] 自愈异常: {ex}\n");
         }
         finally
         {
