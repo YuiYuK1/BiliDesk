@@ -858,7 +858,7 @@
                                 ContentTemplate="{StaticResource CommentPicturesTemplate}"
                                 Visibility="{Binding HasPictures, Converter={StaticResource BoolToVis}}" />
                 <!-- UP主觉得很赞: 正文/图片之后、操作行之前; 与正文左对齐 -->
-                           <TextBlock Text="UP主觉得很赞" FontSize="12" Margin="0,4,0,0"
+                           <TextBlock Text="UP 主觉得很赞" FontSize="12" Margin="0,4,0,0"
                            Foreground="{DynamicResource AccentTextBrush}"
                            Visibility="{Binding IsUpLiked, Converter={StaticResource BoolToVis}}" />
                 <!-- 评论操作行(赞 / 踩 / 回复): 统一走 CommentActionBarTemplate, 别在这里另写一份 -->
