@@ -127,7 +127,7 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                         <!-- UP 主觉得很赞: 正文/图片之后、点赞按钮之前; 与正文左对齐 -->
-                                   <TextBlock Text="UP主觉得很赞" FontSize="12" Margin="0,4,0,0"
+                                   <TextBlock Text="UP 主觉得很赞" FontSize="12" Margin="0,4,0,0"
                                    Foreground="{DynamicResource AccentTextBrush}"
                                    Visibility="{Binding IsUpLiked, Converter={StaticResource BoolToVis}}" />
                         <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
@@ -295,7 +295,7 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                         <!-- UP 主觉得很赞: 正文/图片之后、点赞按钮之前; 与正文左对齐 -->
-                                   <TextBlock Text="UP主觉得很赞" FontSize="12" Margin="0,4,0,0"
+                                   <TextBlock Text="UP 主觉得很赞" FontSize="12" Margin="0,4,0,0"
                                    Foreground="{DynamicResource AccentTextBrush}"
                                    Visibility="{Binding IsUpLiked, Converter={StaticResource BoolToVis}}" />
                         <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
@@ -401,7 +401,7 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                         <!-- UP 主觉得很赞: 正文/图片之后、点赞按钮之前; 与正文左对齐 -->
-                                   <TextBlock Text="UP主觉得很赞" FontSize="12" Margin="0,4,0,0"
+                                   <TextBlock Text="UP 主觉得很赞" FontSize="12" Margin="0,4,0,0"
                                    Foreground="{DynamicResource AccentTextBrush}"
                                    Visibility="{Binding IsUpLiked, Converter={StaticResource BoolToVis}}" />
                         <StackPanel Orientation="Horizontal" Margin="0,4,0,0">

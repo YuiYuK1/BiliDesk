@@ -7,7 +7,7 @@ using Xunit;
 namespace BiliDesk.Tests;
 
 /// <summary>
-/// “UP主觉得很赞”解析: 接口在评论条目顶层给
+/// “UP 主觉得很赞”解析: 接口在评论条目顶层给
 /// <c>up_action: { like: true }</c>。这里用最小 JSON 直接打到 ParseComment,
 /// 防止解析字段被后续重构悄悄挪走(UI 上就表现为标记不出现)。
 /// </summary>

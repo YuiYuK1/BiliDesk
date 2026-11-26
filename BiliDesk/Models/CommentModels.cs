@@ -77,7 +77,7 @@ public class CommentItem : System.ComponentModel.INotifyPropertyChanged
 
     /// <summary>
     /// 这条评论是否被 UP 主点过赞（接口 <c>up_action.like</c>）。
-    /// 界面在正文和点赞按钮之间挂一行小字"UP主觉得很赞"。
+    /// 界面在正文和点赞按钮之间挂一行小字"UP 主觉得很赞"。
     /// </summary>
     public bool IsUpLiked { get; set; }
 
