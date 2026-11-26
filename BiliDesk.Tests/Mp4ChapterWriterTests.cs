@@ -67,6 +67,35 @@ public class Mp4ChapterWriterTests
         }
     }
 
+    [Fact]
+    public void 多个udta时读取第二个chpl()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "bd-chpl2-" + Guid.NewGuid().ToString("N") + ".mp4");
+        try
+        {
+            var chapters = new List<VideoChapter>
+            {
+                new() { Content = "片头", FromMs = 0, ToMs = 10_000 },
+                new() { Content = "正片", FromMs = 10_000, ToMs = 60_000 }
+            };
+            var ftyp = Box("ftyp", Encoding.ASCII.GetBytes("isom"), U32(512));
+            var moov = Box("moov",
+                Box("trak", Box("mdia", Box("minf", Box("stbl", Box("stco", new byte[4], U32(0)))))),
+                Box("udta", Box("meta", new byte[4])),
+                Box("udta", Box("chpl", Mp4ChapterWriter.BuildPayload(chapters))));
+            File.WriteAllBytes(path, ftyp.Concat(moov).ToArray());
+
+            Assert.True(Mp4ChapterReader.TryRead(path, out var read, out var err), err);
+            Assert.Equal(2, read.Count);
+            Assert.Equal("片头", read[0].Content);
+            Assert.Equal("正片", read[1].Content);
+        }
+        finally
+        {
+            try { File.Delete(path); } catch { }
+        }
+    }
+
     private static int IndexOf(byte[] data, string ascii)
     {
         var needle = Encoding.ASCII.GetBytes(ascii);

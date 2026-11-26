@@ -96,14 +96,18 @@ public static class Mp4ChapterReader
     private static byte[]? FindChpl(byte[] moov)
     {
         var moovChildren = ParseBoxes(moov, 8, moov.Length - 8);
-        var udta = moovChildren.Find(b => b.Type == "udta");
-        if (udta == null) return null;
-        var inner = ParseBoxes(moov, checked((int)udta.Offset + 8), checked((int)udta.Size - 8));
-        var chpl = inner.Find(b => b.Type == "chpl");
-        if (chpl == null) return null;
-        var payload = new byte[chpl.Size - 8];
-        Buffer.BlockCopy(moov, checked((int)chpl.Offset + 8), payload, 0, payload.Length);
-        return payload;
+        // 一个 MP4 可以有多个 udta(实测: 一个放 meta, 一个放 chpl);
+        // 不能只取第一个, 否则章节明明存在却读不到。
+        foreach (var udta in moovChildren.FindAll(b => b.Type == "udta"))
+        {
+            var inner = ParseBoxes(moov, checked((int)udta.Offset + 8), checked((int)udta.Size - 8));
+            var chpl = inner.Find(b => b.Type == "chpl");
+            if (chpl == null) continue;
+            var payload = new byte[chpl.Size - 8];
+            Buffer.BlockCopy(moov, checked((int)chpl.Offset + 8), payload, 0, payload.Length);
+            return payload;
+        }
+        return null;
     }
 
     private static long ReadMovieDurationMs(byte[] moov)
