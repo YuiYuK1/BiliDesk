@@ -52,6 +52,14 @@ public class Mp4ChapterWriterTests
             var newMdatStart = moovPos - 4 + (int)moovSize;
             var firstOffset = BinaryPrimitives.ReadUInt32BigEndian(bytes.AsSpan(stcoPos + 12, 4));
             Assert.Equal((uint)(newMdatStart + 8), firstOffset);
+
+            // 写进去的章节也要能被同一个读取器读回来(本地缓存播放走的就是这条)。
+            Assert.True(Mp4ChapterReader.TryRead(path, out var read, out var readErr), readErr);
+            Assert.Equal(2, read.Count);
+            Assert.Equal("片头", read[0].Content);
+            Assert.Equal(0, read[0].FromMs);
+            Assert.Equal("正片", read[1].Content);
+            Assert.Equal(10_000, read[1].FromMs);
         }
         finally
         {

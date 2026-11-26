@@ -1482,6 +1482,10 @@ public partial class PlayerWindow : FluentWindow
 
             // 2026-11-22(mpv): 本地文件直接作为 Url 交给引擎, 不需要 Media/Uri 包装
             _lastPlayUrl = path;
+            // 本地缓存可能由下载器写入了 chpl 章节: 直接读文件, 不请求接口。
+            // 老缓存没有章节时返回 false, _chapters 保持空, 行为与以前一致。
+            if (Mp4ChapterReader.TryRead(path, out var localChapters, out _))
+                ApplyChapters(localChapters);
             // 本地文件是单文件源, seek 一次到位(与 durl 合流单流同性质)
             _isReliableSeekSource = true;
             PlayMedia(BuildMedia(path, null));
