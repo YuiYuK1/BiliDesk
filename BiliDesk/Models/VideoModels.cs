@@ -93,6 +93,17 @@ public class VideoItem : System.ComponentModel.INotifyPropertyChanged
     public string Part { get; set; } = "";
 
     /// <summary>
+    /// 历史记录里最后观看的位置(秒)；0 = 未知。
+    /// ★ 只用于"点击历史记录"这一次起播的兜底: 本机进度更新时仍优先本机。
+    /// </summary>
+    public long ProgressSeconds { get; set; }
+
+    /// <summary>卡片上显示的分P文案, 如 "P4 收敛域/区间/半径"; 没有分P信息时为空。</summary>
+    public string PartLabel => Page > 0
+        ? (string.IsNullOrEmpty(Part) ? $"P{Page}" : $"P{Page} {Part}")
+        : Part;
+
+    /// <summary>
     /// 补齐 avid: 接口给了就用接口的, 没给就按 bvid 本地换算(见 UrlParser.BvToAv,
     /// 算法已用热门 + 排行榜真实数据双向校验), 换不出来(空/非法 bvid)返回 0。
     /// ★ 抽成纯函数是为了能单测 —— 换算错了「稍后再看」会把对勾加到别的视频头上。

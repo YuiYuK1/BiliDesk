@@ -61,8 +61,8 @@ public class PlayerService
     ///   普通视频传 null ⇒ 自动清掉上一个番剧的选集上下文。
     /// </summary>
     public void PlayVideo(string bvid, string? title = null,
-        BiliDesk.Models.BangumiPlaylist? bangumi = null, long cid = 0)
-        => Play(title, win => win.PlayVideo(bvid, bangumi, cid));
+        BiliDesk.Models.BangumiPlaylist? bangumi = null, long cid = 0, long historyStartMs = 0)
+        => Play(title, win => win.PlayVideo(bvid, bangumi, cid, historyStartMs));
 
     /// <summary>
     /// 打开直播间(首页「直播」tab 用)。复用同一个播放器窗口, 走"直播"分支:

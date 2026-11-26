@@ -25,6 +25,7 @@ public enum ResumeSource
     None = 0,
     Local = 1,
     Cloud = 2,
+    History = 3,
 }
 
 /// <summary>选定的续播方案。</summary>
@@ -104,7 +105,7 @@ public sealed class PlaybackProgressService
     /// 本机记录是"这台设备最后一次看到的位置", 比云端上报更及时; 云端只在本机没有记录时兜底。
     /// </summary>
     public ResumePlan? ChooseResume(string bvid, long cid, long durationMs,
-        long cloudMs, long cloudCid, bool autoResume)
+        long cloudMs, long cloudCid, bool autoResume, long historyMs = 0)
     {
         if (!autoResume) return null;
         if (string.IsNullOrEmpty(bvid) || cid <= 0) return null;
@@ -112,16 +113,23 @@ public sealed class PlaybackProgressService
         var local = GetLocal(bvid, cid);
         var localValid = local != null && IsValidPosition(local.PosMs, durationMs);
         var cloudValid = cloudCid == cid && cloudMs > 0 && IsValidPosition(cloudMs, durationMs);
+        var historyValid = historyMs > 0 && IsValidPosition(historyMs, durationMs);
 
         if (localValid)
         {
-            // 本机记录通常更及时; 但如果它已经很久没更新, 而 B 站云端进度明显不同,
-            // 说明用户可能中途在网页端看过 —— 这时以云端为准, 才叫"与 B 站同步"。
+            // 本机记录通常更及时; 但如果它已经很久没更新, 而 B 站云端/历史条目
+            // 明显不同, 说明用户可能中途在网页端看过 —— 这时以云端为准。
             var localAge = Now - local!.UpdatedAt;
+            if (historyValid && localAge > 3_600 && Math.Abs(historyMs - local.PosMs) > 30_000)
+                return new ResumePlan { PosMs = historyMs, Source = ResumeSource.History };
             if (cloudValid && localAge > 3_600 && Math.Abs(cloudMs - local.PosMs) > 30_000)
                 return new ResumePlan { PosMs = cloudMs, Source = ResumeSource.Cloud };
             return new ResumePlan { PosMs = local.PosMs, Source = ResumeSource.Local };
         }
+        // 本机没有该分P的记录: 历史条目是"用户这次点进来的那条记录", 优先于
+        // playurl 的全局 last_play(它可能属于另一个分P)。
+        if (historyValid)
+            return new ResumePlan { PosMs = historyMs, Source = ResumeSource.History };
         if (cloudValid)
             return new ResumePlan { PosMs = cloudMs, Source = ResumeSource.Cloud };
         return null;

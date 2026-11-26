@@ -195,7 +195,7 @@ public partial class ApiClient
             if (!data.Value.TryGetProperty("list", out var list) ||
                 list.ValueKind != JsonValueKind.Array) return;
 
-            var lastPages = new Dictionary<string, (long Cid, int Page, string Part)>(
+            var lastPages = new Dictionary<string, (long Cid, int Page, string Part, long Progress)>(
                 StringComparer.Ordinal);
             foreach (var h in list.EnumerateArray())
             {
@@ -205,15 +205,21 @@ public partial class ApiClient
                 var bvid = GetStr(hist, "bvid");
                 var cid = GetLong(hist, "cid");
                 if (string.IsNullOrEmpty(bvid) || cid <= 0) continue;
-                lastPages[bvid] = (cid, GetInt(hist, "page"), GetStr(hist, "part"));
+                lastPages[bvid] = (cid, GetInt(hist, "page"), GetStr(hist, "part"),
+                    Math.Max(0, GetLong(h, "progress")));
             }
 
             foreach (var it in items)
             {
                 if (!lastPages.TryGetValue(it.Bvid, out var last)) continue;
+                var oldCid = it.Cid;
                 it.Cid = last.Cid;
                 it.Page = last.Page;
                 it.Part = last.Part;
+                // 旧接口的 progress 属于它返回的 P1; 分P 已被 correction 成别的 P 时,
+                // 不能把 P1 的进度套到 P4 上。只有 cursor 明确给了进度才覆盖。
+                if (last.Cid != oldCid) it.ProgressSeconds = last.Progress;
+                else if (last.Progress > 0) it.ProgressSeconds = last.Progress;
             }
         }
         catch
@@ -294,6 +300,7 @@ public partial class ApiClient
                         Cid = cid,
                         Page = pageNo,
                         Part = part,
+                        ProgressSeconds = Math.Max(0, GetLong(h, "progress")),
                         Title = GetStr(h, "title").StripHtml(),
                         Cover = UrlUtil.Normalize(cover),
                         Author = author,

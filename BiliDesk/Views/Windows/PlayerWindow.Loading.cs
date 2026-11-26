@@ -78,7 +78,8 @@ public partial class PlayerWindow : FluentWindow
     /// ★ 上下文必须在 ResetForNewMedia **之前**写好: 那个方法负责清每片状态,
     ///   而这份选集表是**跨片保持**的(同一季连播几集都用它)。
     /// </summary>
-    public void PlayVideo(string bvid, BangumiPlaylist? bangumi = null, long cid = 0)
+    public void PlayVideo(string bvid, BangumiPlaylist? bangumi = null, long cid = 0,
+        long historyStartMs = 0)
     {
         if (_closing || string.IsNullOrEmpty(bvid)) return;
         // 同一个视频、同一个分P才早退；同 bvid 换分P(历史记录点回某一P)必须重新加载。
@@ -89,7 +90,7 @@ public partial class PlayerWindow : FluentWindow
         _isLive = false;
         SetBangumiPlaylist(bangumi);
         ResetForNewMedia();
-        _ = LoadVideoAsync(cid);
+        _ = LoadVideoAsync(cid, historyStartMs);
     }
 
     // ------------------------------------------------------------ 简介折叠 + 相关视频(2026-10-12)
@@ -1541,7 +1542,7 @@ public partial class PlayerWindow : FluentWindow
     ///   分P 是同一个 bvid 切成几段, 换段只换 cid(见 SwitchToPageAsync),
     ///   所以这里用参数传, 不去改 _currentBvid —— 改了会把弹幕/历史/三连的归属整个搞错。
     /// </summary>
-    private async Task LoadVideoAsync(long cid = 0)
+    private async Task LoadVideoAsync(long cid = 0, long historyStartMs = 0)
     {
         if (string.IsNullOrEmpty(_currentBvid)) return;
 
@@ -1653,7 +1654,8 @@ public partial class PlayerWindow : FluentWindow
             // ★ 进度选择放在"取流成功"之后、起播之前: 这时 durMs 已知道, 可以过滤掉
             //   "太靠前"和"已经播到片尾"的无效进度。
             var resumePlan = Svc.PlaybackProgress.ChooseResume(
-                _currentBvid, _currentCid, durMs, lastPlayMs, lastPlayCid, Svc.Settings.AutoResume);
+                _currentBvid, _currentCid, durMs, lastPlayMs, lastPlayCid,
+                Svc.Settings.AutoResume, historyStartMs);
             var resumeMs = resumePlan?.PosMs ?? 0;
 
             // ---- 极短片(≤60s / ≤8MB): 先合流成本地文件再播; 其余一律远端双流直接起播 ----

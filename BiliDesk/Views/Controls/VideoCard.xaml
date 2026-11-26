@@ -121,6 +121,11 @@
                        Style="{StaticResource CardTitleStyle}"
                        Cursor="Hand" MouseLeftButtonUp="OnTitleClick"
                        ToolTip="{Binding Title, Mode=OneWay}" />
+            <!-- 历史记录的分P: 只有历史条目会填, 其它列表为空自动隐藏 -->
+            <TextBlock Text="{Binding PartLabel}" FontSize="11" Margin="0,2,0,0"
+                       Foreground="{DynamicResource TextTertiaryBrush}"
+                       TextTrimming="CharacterEllipsis"
+                       Visibility="{Binding PartLabel, Converter={StaticResource StrToVis}}" />
             <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                 <!-- 「已关注」标签(2026-11-08): 放在第二行**行首**, 即 UP 主名左边 ——
                      与 B 站网页版/用户给的参考图一致(「[已关注] 差评君 · 10-24」)。
