@@ -302,7 +302,7 @@ public partial class PlayerWindow : FluentWindow
             //   直播弹幕的上屏条件含 _dmClockRunning(见 OnLiveDanmakuPumpTick), 不在这里
             //   立起来的话, 起播后头几百毫秒收到的弹幕只进右侧列表、不上屏 ——
             //   用户看到的就是"进直播间要等一会才出现弹幕"。
-            if (_isLive) StartLiveDanmakuClock();
+            if (_isLive) { StartLiveDanmakuClock(); _livePlayingSince = Environment.TickCount64; }
             StartControlsHideCountdown();   // 播放中才开始倒计时自动隐藏
             // 聆听态: 起播后把文案里的秒数对齐到真实位置(切流前后 _engine.Time 会有几十毫秒偏差),
             // 并确保声波律动已经在跑(切清晰度/换片都会重建 Media, 但定时器是窗口级的, 不会断)。

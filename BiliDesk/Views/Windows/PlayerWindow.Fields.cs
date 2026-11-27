@@ -79,6 +79,13 @@ public partial class PlayerWindow : FluentWindow
     ///   (80/150/250/400/10000/20000…)。直播重连/重播时沿用这里选过的档, 换片源归零。
     /// </summary>
     private int _liveQn;
+
+    /// <summary>直播流 EOF 后的自动重连次数; 播放稳定 30s 后才清零。</summary>
+    private int _liveReconnectCount;
+    /// <summary>本次直播真正开始播放的时刻(用于判断上一次连接是否只是短暂连上)。</summary>
+    private long _livePlayingSince;
+    /// <summary>防止同一秒内多个 end-file 事件并发重连。</summary>
+    private bool _liveReconnectInFlight;
     private long _currentCid;
     private long _ownerMid;
     private string _ownerName = "";

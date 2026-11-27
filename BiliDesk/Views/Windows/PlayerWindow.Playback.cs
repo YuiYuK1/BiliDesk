@@ -1611,11 +1611,52 @@ public partial class PlayerWindow : FluentWindow
         }));
     }
 
+    /// <summary>
+    /// 直播 EOF 自动重连: 重新取一次直播流地址(签名可能已变), 从当前实时位置继续。
+    /// ★ 直播没有"进度"可续, 不重建旧的 input, 直接走 LoadLiveAsync。
+    /// ★ 连续三次仍连不上才交给失败遮罩; 播放稳定 30s 后重置预算。
+    /// </summary>
+    private async Task ReconnectLiveAfterEofAsync()
+    {
+        if (_closing || !_isLive || _liveReconnectInFlight) return;
+        _liveReconnectInFlight = true;
+        try
+        {
+            var now = Environment.TickCount64;
+            if (_livePlayingSince > 0 && now - _livePlayingSince >= 30_000)
+                _liveReconnectCount = 0;
+            _livePlayingSince = 0;
+            _liveReconnectCount++;
+            PlayerLog.Write(
+                $"[Live] 直播流结束 → 自动重连第{_liveReconnectCount}次 room={_liveRoomId}\n");
+
+            // 直播没有"结束"这一说: 只要房间还在就继续重连。房间真下播时
+            // LoadLiveAsync 的取流会失败并显示失败遮罩, 不会无限空转。
+            // 退避封顶 8s, 避免坏 CDN 把接口打爆。
+            var delayMs = Math.Min(8000, 1000 * (1 << Math.Min(_liveReconnectCount - 1, 3)));
+            await Task.Delay(delayMs);
+            if (_closing || !_isLive) return;
+            await LoadLiveAsync(_liveRoomId);
+        }
+        finally
+        {
+            _liveReconnectInFlight = false;
+        }
+    }
+
     private void HandleEndReached()
     {
         // 已经在「已播完」态: 重复的 EOF 事件(同一条 input 可能补发)不再处理,
         // 否则会在重播页上又触发一次重建/续播。
         if (_ended) return;
+
+        // ★ 2026-11-27: 直播流(尤其只有音频的电台/轮播)经常在几秒~几十秒后 EOF。
+        //   直播的 EOF 不是"播完了", 而是连接断了; 走重连, 不要弹「已播完」。
+        if (_isLive)
+        {
+            _ = ReconnectLiveAfterEofAsync();
+            return;
+        }
 
         // ★★★ 2026-11-20: `:start-time` 重建"起播了却没定位"的兜底。
         //

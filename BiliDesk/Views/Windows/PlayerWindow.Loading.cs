@@ -874,6 +874,9 @@ public partial class PlayerWindow : FluentWindow
         _totalMs = 0;
         // 新的直播/视频都从服务端默认清晰度开始; 同一直播的重连/重播不经过这里, 会沿用上次选的档。
         _liveQn = 0;
+        _liveReconnectCount = 0;
+        _livePlayingSince = 0;
+        _liveReconnectInFlight = false;
         _currentCid = 0;
         _aid = 0;
         // 收藏夹列表是按 aid 查的: 换片后上一条的缓存必须作废。
@@ -1145,6 +1148,7 @@ public partial class PlayerWindow : FluentWindow
         nameof(_likeCount), nameof(_coinCount), nameof(_favCount), nameof(_cacheDownloaded),
         // 播放源标识
         nameof(_isLocalPlayback), nameof(_isLive), nameof(_liveRoomId), nameof(_liveQn), nameof(_currentCid),
+        nameof(_liveReconnectCount), nameof(_livePlayingSince), nameof(_liveReconnectInFlight),
         nameof(_aid), nameof(_ownerMid), nameof(_ownerName), nameof(_ownerFace),
         nameof(_videoTitle), nameof(_currentQn), nameof(_currentBvid),
         nameof(_coverUrl),           // 封面属于"这一片"(聆听态的画面锚点)

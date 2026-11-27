@@ -64,7 +64,13 @@ public partial class PlayerWindow : FluentWindow
             try { _engine?.Stop(); } catch { /* 已经停了/正在拆解 */ }
         }
         // 直播失败要重连直播, 不能落回点播那条路(那时 _currentBvid 是空的)
-        if (_isLive) _ = LoadLiveAsync(_liveRoomId);
+        if (_isLive)
+        {
+            // 用户手动重试 = 重新给一轮自动重连预算
+            _liveReconnectCount = 0;
+            _livePlayingSince = 0;
+            _ = LoadLiveAsync(_liveRoomId);
+        }
         else _ = LoadVideoAsync();
     }
 
