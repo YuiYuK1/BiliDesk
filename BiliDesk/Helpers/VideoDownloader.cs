@@ -167,7 +167,7 @@ public static class VideoDownloader
         if (req.Cid <= 0 || string.IsNullOrEmpty(req.Bvid) || !File.Exists(part)) return;
         try
         {
-            var (ok, _, _, _, chapters) = await Svc.Api.GetPlayerInfoAsync(req.Bvid, req.Cid);
+            var (ok, _, _, _, chapters, _) = await Svc.Api.GetPlayerInfoAsync(req.Bvid, req.Cid);
             if (!ok || chapters == null || chapters.Count < 2) return;
 
             if (Mp4ChapterWriter.TryAdd(part, chapters, out var err))
