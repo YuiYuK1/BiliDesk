@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -683,6 +683,8 @@ public partial class ApiClient
 
         string? first = null;
         var firstQn = 0;
+        string? hls = null;
+        var hlsQn = 0;
 
         if (pu.TryGetProperty("stream", out var streams) && streams.ValueKind == JsonValueKind.Array)
         {
@@ -720,9 +722,16 @@ public partial class ApiClient
                         var full = host + path + extra;
                         var currentQn = GetIntSafe(cd, "current_qn");
 
-                        // http_stream(原流) + flv 是最优解: 延迟低、LibVLC 支持最成熟
-                        if (protocol == "http_stream" && format == "flv")
-                            return (full, currentQn, FinishLiveQualities(qualities, accepted, currentQn));
+                        // ★ 2026-11-27: 优先 HLS。
+                        //   FLV 在部分 CDN/音频直播上会被服务端**正常 EOF**(不是网络错误),
+                        //   ffmpeg 的 stream-lavf-o=reconnect 不会重连这种干净关闭; 表现就是
+                        //   "播 10 秒就结束", 只能应用层反复重连, 有明显断点。
+                        //   HLS 的 m3u8 会持续刷新分片, mpv 能连续播; 拿不到 HLS 再回退 FLV。
+                        if (protocol == "http_hls" && hls == null)
+                        {
+                            hls = full;
+                            hlsQn = currentQn;
+                        }
 
                         if (first == null)
                         {
@@ -734,7 +743,9 @@ public partial class ApiClient
             }
         }
 
-        return (first, firstQn, FinishLiveQualities(qualities, accepted, firstQn));
+        var chosen = hls ?? first;
+        var chosenQn = hls != null ? hlsQn : firstQn;
+        return (chosen, chosenQn, FinishLiveQualities(qualities, accepted, chosenQn));
     }
 
     /// <summary>
